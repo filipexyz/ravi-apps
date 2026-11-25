@@ -1,13 +1,13 @@
 {
   "schema": "ravi.app-index/v1",
   "source": "official",
-  "serial": 1,
-  "issuedAt": "2026-11-25T17:09:14.018Z",
-  "expires": "2026-12-25T17:09:14.018Z",
+  "serial": 2,
+  "issuedAt": "2026-11-25T23:32:31.628Z",
+  "expires": "2026-12-25T23:32:31.628Z",
   "apps": {
     "blog": {
       "name": "Blog",
-      "description": "Write and publish a blog as Ravi Pages: one route per post under /blog, and an index page that lists them.",
+      "description": "A blog from Markdown posts: renders each post, the index and an RSS feed with its own theme, then publishes them as one Ravi Pages route.",
       "publisher": "ravi",
       "versions": [
         {
@@ -42,6 +42,46 @@
           },
           "engines": {},
           "publishedAt": "2026-11-25T17:09:14.018Z",
+          "status": "active",
+          "security": false
+        },
+        {
+          "version": "0.2.0",
+          "class": "compose",
+          "treeHash": "f865dafce0c33e1b6e472d6ea4433367629e2619ec87e966bbeb5aabb4df88d0",
+          "bundle": {
+            "path": "bundles/blog-0.2.0.json",
+            "sha256": "a7860352d5d40e945c3a72480bef9a901005b1a68f4edbd070f7ec83e828dc10",
+            "size": 23492
+          },
+          "grants": {
+            "contextAllow": [
+              "execute:group:pages",
+              "use:tool:Read"
+            ],
+            "operations": {
+              "blog.build": {
+                "runs": "sandbox:lib/blog.js (reads --posts <folder in the working directory>)",
+                "mutating": false
+              },
+              "blog.publish": {
+                "runs": "sandbox:lib/blog.js then ravi pages ship --json {args} --dir <files> [script may set --route --title --project] (reads --posts <folder in the working directory>)",
+                "mutating": true
+              },
+              "blog.posts": {
+                "runs": "ravi pages published --json {args}",
+                "mutating": false
+              },
+              "blog.read": {
+                "runs": "ravi pages read {args}",
+                "mutating": false
+              }
+            },
+            "hosts": [],
+            "connections": []
+          },
+          "engines": {},
+          "publishedAt": "2026-11-25T23:32:31.628Z",
           "status": "active",
           "security": false
         }

@@ -22,12 +22,12 @@ Ravi checks all of this itself; nothing in this repository runs on your machine.
 
 Only **compose** apps: every command they run is `ravi` itself, aimed at a command that remote callers may use, and never an administration command (permissions, credentials, daemon, settings and the like). A compose app can do nothing the agent that calls it could not already do. Ravi derives the class from the manifest; nobody declares it.
 
-Apps that run their own code are not accepted until Ravi runs them in a sandbox.
+An app's own logic ships as JavaScript and runs as a `script` operation inside Ravi's sandbox (QuickJS in WebAssembly): no disk, network, environment or other programs, with limits on memory, time and size. The script receives the files of one folder the caller names and returns files, which Ravi hands to one declared `ravi` command. Apps that need to run any other program are not accepted. See [SECURITY.md](SECURITY.md).
 
 ## Layout
 
 ```
-apps/<id>/            the app as written: ravi.app.json plus text files (SKILL.md, ...)
+apps/<id>/            the app as written: ravi.app.json plus text files (SKILL.md, lib/*.js, ...)
 bundles/<id>-<v>.json what Ravi downloads, built from apps/<id>/ by `ravi apps index build`
 index.json(.sig)      the signed list
 keys.json(.sig)       publication and block keys, signed by the root key
@@ -40,6 +40,6 @@ A published version never changes. To change an app, raise its `version`.
 
 | App | What it does |
 |---|---|
-| [`blog`](apps/blog/) | Writes a blog as Ravi Pages: one route per post under `/blog`, and an index that lists them. |
+| [`blog`](apps/blog/) | Turns a folder of Markdown posts into a blog (post pages, index, RSS feed, its own theme) and publishes it as one Ravi Pages route. |
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) to propose an app.

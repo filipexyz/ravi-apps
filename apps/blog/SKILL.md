@@ -1,29 +1,37 @@
 # Blog
 
-Write and keep a blog as routes of the project's Ravi Page.
+Keep a blog as Markdown files and publish it as one route of the project's Ravi Page.
 
-## Layout
+## Write
 
-- Each post is one route: `/blog/<slug>`. The slug is lowercase words joined by dashes, taken from the title.
-- `/blog` is the index: newest post first, each with its title, date and one-line summary, linking to the post.
-- Posts and the index share one look. Before writing a new post, read the latest one with `ravi blog read <url> --format html` and keep its structure and style.
+- Keep the posts in one folder inside your working directory, for example `posts/`. One `.md` file per post.
+- Start each post with front matter:
 
-## Publish a post
+  ```
+  ---
+  title: Título do post
+  date: 2026-11-25
+  description: Uma linha que aparece no índice e no feed.
+  tags: ravi, notas
+  ---
+  ```
 
-1. Write the post as one full HTML document (a `<title>`, the date, the text). Keep it readable on a phone.
-2. Publish it, passing the HTML itself with `--body` (the app cannot read files):
-   `ravi blog publish --execute -- --route /blog/<slug> --title "<title>" --body "<html>"`
-3. List what is published: `ravi blog posts --json`. The posts are the routes under `/blog/`.
-4. Rewrite the index with every post, newest first, and publish it:
-   `ravi blog publish --execute -- --route /blog --title "Blog" --body "<html>"`
-5. Reply with the post's URL.
+  `draft: true` keeps a post out until you remove it. `slug:` overrides the file name in the URL.
+- An optional `posts/site.json` sets the blog itself: `{"title": "...", "description": "...", "author": "...", "lang": "pt-BR", "url": "https://<host>/blog"}`. Set `url` so the RSS feed carries full links.
+- Write plain Markdown: headings, lists, quotes, code blocks, links and images. Raw HTML is shown as text, and only `http(s)`, `mailto` and relative links are kept.
+
+## Preview
+
+`ravi blog build --posts posts --json` renders every page and returns the files without publishing. Read `result.result.posts` to check titles, dates and slugs.
+
+## Publish
+
+`ravi blog publish --execute -- --posts posts`
+
+It renders the index, one page per post, the RSS feed and the stylesheet, and ships them together to `/blog` (change with `--route`). Pass `--project <project>` when the agent works in more than one Console project. Reply with the route's URL.
 
 If `ravi blog ...` is refused as an alias in your turn, use `ravi apps run blog <operation> --execute --json -- <args>`.
 
-Pass `--project <project>` on every call when the agent works in more than one Console project.
-
 ## What the app can do
 
-It only runs `ravi pages ship`, `ravi pages published` and `ravi pages read`, with the grants of the agent that calls it. Publishing needs the agent's own permission to ship Pages; the app adds none.
-
-Visibility follows the project's Page: a public blog needs the operator to make the route public (`ravi pages visibility`), which the app never does.
+The generator runs inside Ravi's script sandbox: it cannot read anything but the posts folder Ravi hands it, and it cannot reach the network, the environment or other programs. The only thing it can do outside the sandbox is `ravi pages ship` with the files it rendered and the `--route`, `--title` and `--project` flags, under the grants of the agent that calls it. Reading the posts folder and the rendered files needs the calling agent's own right to read local files (`use:tool:Read`). It never changes a page's visibility: a public blog needs the operator to run `ravi pages visibility`.
