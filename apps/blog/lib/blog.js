@@ -63,30 +63,46 @@ function parseFrontMatter(source) {
   return { meta: meta, body: rest.replace(/^[^\n]*\n/, "") };
 }
 
-// Inline Markdown: code, images, links, bold, italic. Everything is escaped first.
+// Inline Markdown: code, images, links, bold, italic. Every piece of markup
+// the renderer emits is parked behind a placeholder as soon as it is built,
+// so later passes only ever see escaped text and can never rewrite a tag.
 function renderInline(text) {
-  var codes = [];
-  var out = String(text).replace(/`([^`\n]+)`/g, function (_, code) {
-    codes.push("<code>" + escapeHtml(code) + "</code>");
-    return "\u0000" + (codes.length - 1) + "\u0000";
+  var parked = [];
+  function park(html) {
+    parked.push(html);
+    return "\u0000" + (parked.length - 1) + "\u0000";
+  }
+  var out = String(text).replace(/\u0000/g, "");
+  out = out.replace(/`([^`\n]+)`/g, function (_, code) {
+    return park("<code>" + escapeHtml(code) + "</code>");
   });
-  out = escapeHtml(out);
-  out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (all, alt, src) {
-    var url = safeUrl(src.replace(/&amp;/g, "&"));
-    return url === null ? alt : '<img src="' + escapeHtml(url) + '" alt="' + alt + '" loading="lazy">';
+  out = out.replace(/!\[([^\]\u0000]*)\]\(([^)\s\u0000]+)\)/g, function (all, alt, src) {
+    var url = safeUrl(src);
+    return url === null
+      ? park(escapeHtml(alt))
+      : park('<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(alt) + '" loading="lazy">');
   });
-  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (all, label, href) {
-    var url = safeUrl(href.replace(/&amp;/g, "&"));
-    if (url === null) return label;
+  out = out.replace(/\[([^\]\u0000]+)\]\(([^)\s\u0000]+)\)/g, function (all, label, href) {
+    var url = safeUrl(href);
+    var inner = emphasis(escapeHtml(label));
+    if (url === null) return park(inner);
     var external = /^https?:/i.test(url);
-    return '<a href="' + escapeHtml(url) + '"' + (external ? ' rel="noopener noreferrer"' : "") + ">" + label + "</a>";
+    return park(
+      '<a href="' + escapeHtml(url) + '"' + (external ? ' rel="noopener noreferrer"' : "") + ">" + inner + "</a>",
+    );
   });
-  out = out.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
-  out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
-  out = out.replace(/(^|[^\w])_([^_\n]+)_(?=[^\w]|$)/g, "$1<em>$2</em>");
+  out = emphasis(escapeHtml(out));
   return out.replace(/\u0000(\d+)\u0000/g, function (_, index) {
-    return codes[Number(index)];
+    return parked[Number(index)];
   });
+}
+
+// Bold and italic over text that is already escaped and holds no tags.
+function emphasis(escaped) {
+  return escaped
+    .replace(/\*\*([^*\n\u0000]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n\u0000]+)\*/g, "$1<em>$2</em>")
+    .replace(/(^|[^\w])_([^_\n\u0000]+)_(?=[^\w]|$)/g, "$1<em>$2</em>");
 }
 
 // Block Markdown: headings, paragraphs, lists, quotes, fenced code, rules.
@@ -146,7 +162,8 @@ function renderMarkdown(source) {
       html.push("<" + tag + ">" + items.join("") + "</" + tag + ">");
       continue;
     }
-    var paragraph = [];
+    // The first line always belongs to the paragraph, so every pass consumes at least one line.
+    var paragraph = [lines[i++].trim()];
     while (
       i < lines.length &&
       !isBlank(lines[i]) &&
