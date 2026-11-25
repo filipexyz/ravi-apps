@@ -1,0 +1,81 @@
+{
+  "schema": "ravi.app/v1",
+  "id": "blog",
+  "name": "Blog",
+  "version": "0.1.0",
+  "description": "Write and publish a blog as Ravi Pages: one route per post under /blog, and an index page that lists them.",
+  "interfaces": {
+    "cli": {
+      "command": "ravi pages",
+      "json": true
+    }
+  },
+  "context": {
+    "allow": [
+      "execute:group:pages"
+    ]
+  },
+  "operations": {
+    "blog.publish": {
+      "interface": "cli",
+      "command": "ravi pages ship --json {args}",
+      "mutating": true,
+      "permission": "blog:write",
+      "help": {
+        "usage": "ravi blog publish --route /blog/<slug> --title \"<title>\" --body \"<html>\" [--project <project>]",
+        "summary": "Publish one post, or the /blog index page, as a route of the project's Ravi Page.",
+        "examples": [
+          "ravi apps run blog publish --execute -- --route /blog/primeiro-post --title \"Primeiro post\" --body \"<!doctype html>...\"",
+          "ravi apps run blog publish --execute -- --route /blog --title \"Blog\" --body \"<!doctype html>...\""
+        ],
+        "sections": [
+          {
+            "title": "Rules",
+            "lines": [
+              "One post is one route: /blog/<slug>, slug in lowercase-with-dashes.",
+              "After publishing a post, list posts and publish /blog again so the index links every post, newest first.",
+              "Publishing is a write: the router asks for --execute.",
+              "Pass the page as --body: the app is not allowed to read files."
+            ]
+          }
+        ]
+      }
+    },
+    "blog.posts": {
+      "interface": "cli",
+      "command": "ravi pages published --json {args}",
+      "mutating": false,
+      "permission": "blog:read",
+      "help": {
+        "usage": "ravi blog posts [--project <project>]",
+        "summary": "List the published routes; posts are the ones under /blog/."
+      }
+    },
+    "blog.read": {
+      "interface": "cli",
+      "command": "ravi pages read {args}",
+      "mutating": false,
+      "permission": "blog:read",
+      "help": {
+        "usage": "ravi blog read <url> [--format html]",
+        "summary": "Read a published post or the index back, to edit it or match its style."
+      }
+    }
+  },
+  "permissions": {
+    "required": [
+      "blog:read"
+    ],
+    "optional": [
+      "blog:write"
+    ],
+    "mutating": [
+      "blog:write"
+    ]
+  },
+  "skills": [],
+  "versioning": {
+    "compatibility": "semver",
+    "migrations": []
+  }
+}
