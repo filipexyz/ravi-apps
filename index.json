@@ -1,0 +1,51 @@
+{
+  "schema": "ravi.app-index/v1",
+  "source": "official",
+  "serial": 1,
+  "issuedAt": "2026-11-25T17:09:14.018Z",
+  "expires": "2026-12-25T17:09:14.018Z",
+  "apps": {
+    "blog": {
+      "name": "Blog",
+      "description": "Write and publish a blog as Ravi Pages: one route per post under /blog, and an index page that lists them.",
+      "publisher": "ravi",
+      "versions": [
+        {
+          "version": "0.1.0",
+          "class": "compose",
+          "treeHash": "9693b09a7fd3f4cd18e12c05a4e7773a9b270d7b1cc996c5360b94ec8960e68b",
+          "bundle": {
+            "path": "bundles/blog-0.1.0.json",
+            "sha256": "179bbde80d69ae88807fd781df741a415ba447ff4bacb8b8ceeba1eb8efb0a11",
+            "size": 4621
+          },
+          "grants": {
+            "contextAllow": [
+              "execute:group:pages"
+            ],
+            "operations": {
+              "blog.publish": {
+                "runs": "ravi pages ship --json {args}",
+                "mutating": true
+              },
+              "blog.posts": {
+                "runs": "ravi pages published --json {args}",
+                "mutating": false
+              },
+              "blog.read": {
+                "runs": "ravi pages read {args}",
+                "mutating": false
+              }
+            },
+            "hosts": [],
+            "connections": []
+          },
+          "engines": {},
+          "publishedAt": "2026-11-25T17:09:14.018Z",
+          "status": "active",
+          "security": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "ravi.app-signers/v1",
+  "serial": 1,
+  "expires": "2027-11-25T17:09:08.633Z",
+  "publish": [
+    "ypdvKuZFm33vIHe6fXL7hj+D3PKJYcTE2EGXRHNEiZA="
+  ],
+  "block": [
+    "8sVfz3Fz/OwkPZJTgS8nRbTT3OsdVKgGh0TCqbekaII="
+  ]
+}
