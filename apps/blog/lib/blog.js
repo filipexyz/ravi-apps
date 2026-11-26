@@ -9,8 +9,16 @@
 
 var VERSION = "0.2.0";
 
+// Characters XML 1.0 forbids, plus the C1 controls and the line separators
+// some parsers treat as line ends: dropped from everything the generator emits.
+var FORBIDDEN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u2028\u2029\uFFFE\uFFFF]/g;
+
+function clean(text) {
+  return String(text).replace(FORBIDDEN, "");
+}
+
 function escapeHtml(text) {
-  return String(text)
+  return clean(text)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -22,14 +30,23 @@ function escapeXml(text) {
   return escapeHtml(text);
 }
 
-// Only links that cannot run script: http(s), mailto, in-page and relative paths.
+// Only links that cannot run script. A destination with a control character,
+// a space, a backslash or a quote is refused outright (browsers drop some of
+// those before reading the scheme). Absolute links must be http(s) or mailto;
+// anything else must look like a plain relative path, in-page anchor or query.
+var URL_CHARS = /^[A-Za-z0-9._~!$&'()*+,;=:@%\/?#-]+$/;
 function safeUrl(url) {
-  var value = String(url).trim();
-  if (/^(https?:|mailto:)/i.test(value)) return value;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return null;
-  if (value.indexOf("//") === 0) return null;
+  var value = String(url);
+  if (!value || value.length > 2000 || !URL_CHARS.test(value) || /['()]/.test(value.charAt(0))) return null;
+  if (/^https?:\/\/[A-Za-z0-9]/i.test(value) || /^mailto:[A-Za-z0-9]/i.test(value)) return value;
+  if (value.charAt(0) === "/" && value.charAt(1) === "/") return null;
+  // A relative path holds no ":" before its first "/", "?" or "#", so it can never name a scheme.
+  var head = value.split(/[\/?#]/)[0];
+  if (head.indexOf(":") >= 0) return null;
   return value;
 }
+
+var KNOWN_OPTIONS = ["title", "description", "author", "lang", "url", "footer", "drafts", "route", "project"];
 
 function parseArgs(args) {
   var options = {};
@@ -40,18 +57,26 @@ function parseArgs(args) {
     var name = eq > 0 ? token.slice(2, eq) : token.slice(2);
     var value = eq > 0 ? token.slice(eq + 1) : args[++i];
     if (value === undefined) throw new Error("--" + name + " needs a value");
+    if (KNOWN_OPTIONS.indexOf(name) < 0) throw new Error("unknown flag --" + name + " (known: --" + KNOWN_OPTIONS.join(", --") + ")");
+    if (Object.prototype.hasOwnProperty.call(options, name)) throw new Error("--" + name + " was given twice");
     options[name] = value;
   }
   return options;
 }
 
+function normalizeText(source) {
+  return clean(String(source).replace(/^\uFEFF/, "").replace(/\r\n?|[\u2028\u2029]/g, "\n"));
+}
+
 function parseFrontMatter(source) {
-  var text = source.replace(/\r\n?/g, "\n");
-  var meta = {};
-  if (text.indexOf("---\n") !== 0) return { meta: meta, body: text };
-  var end = text.indexOf("\n---", 4);
-  if (end < 0) return { meta: meta, body: text };
-  var lines = text.slice(4, end).split("\n");
+  // Blank lines before the opening --- are allowed, so a stray one cannot hide a draft flag.
+  var text = normalizeText(source).replace(/^(?:[ \t]*\n)+/, "");
+  var meta = Object.create(null);
+  if (!/^---[ \t]*\n/.test(text)) return { meta: meta, body: text };
+  var start = text.indexOf("\n") + 1;
+  var end = text.indexOf("\n---", start - 1);
+  if (end < 0) throw new Error("front matter opened with --- is never closed");
+  var lines = text.slice(start, end).split("\n");
   for (var i = 0; i < lines.length; i++) {
     var match = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$/.exec(lines[i]);
     if (!match) continue;
@@ -70,19 +95,19 @@ function renderInline(text) {
   var parked = [];
   function park(html) {
     parked.push(html);
-    return "\u0000" + (parked.length - 1) + "\u0000";
+    return "\uE000" + (parked.length - 1) + "\uE000";
   }
-  var out = String(text).replace(/\u0000/g, "");
+  var out = clean(text).replace(/\uE000/g, "");
   out = out.replace(/`([^`\n]+)`/g, function (_, code) {
     return park("<code>" + escapeHtml(code) + "</code>");
   });
-  out = out.replace(/!\[([^\]\u0000]*)\]\(([^)\s\u0000]+)\)/g, function (all, alt, src) {
+  out = out.replace(/!\[([^\]\uE000]*)\]\(([^)\s\uE000]+)\)/g, function (all, alt, src) {
     var url = safeUrl(src);
     return url === null
       ? park(escapeHtml(alt))
       : park('<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(alt) + '" loading="lazy">');
   });
-  out = out.replace(/\[([^\]\u0000]+)\]\(([^)\s\u0000]+)\)/g, function (all, label, href) {
+  out = out.replace(/\[([^\]\uE000]+)\]\(([^)\s\uE000]+)\)/g, function (all, label, href) {
     var url = safeUrl(href);
     var inner = emphasis(escapeHtml(label));
     if (url === null) return park(inner);
@@ -92,7 +117,7 @@ function renderInline(text) {
     );
   });
   out = emphasis(escapeHtml(out));
-  return out.replace(/\u0000(\d+)\u0000/g, function (_, index) {
+  return out.replace(/\uE000(\d+)\uE000/g, function (_, index) {
     return parked[Number(index)];
   });
 }
@@ -100,15 +125,30 @@ function renderInline(text) {
 // Bold and italic over text that is already escaped and holds no tags.
 function emphasis(escaped) {
   return escaped
-    .replace(/\*\*([^*\n\u0000]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*\n\u0000]+)\*/g, "$1<em>$2</em>")
-    .replace(/(^|[^\w])_([^_\n\u0000]+)_(?=[^\w]|$)/g, "$1<em>$2</em>");
+    .replace(/\*\*([^*\n\uE000]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n\uE000]+)\*/g, "$1<em>$2</em>")
+    .replace(/(^|[^\w])_([^_\n\uE000]+)_(?=[^\w]|$)/g, "$1<em>$2</em>");
 }
 
 // Block Markdown: headings, paragraphs, lists, quotes, fenced code, rules.
 // Raw HTML is never passed through.
-function renderMarkdown(source) {
-  var lines = source.replace(/\r\n?/g, "\n").split("\n");
+var FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+var MAX_QUOTE_DEPTH = 8;
+
+// "Title ##" -> "Title", without a regex that backtracks on long runs of spaces.
+function headingText(text) {
+  var end = text.length;
+  while (end > 0 && (text.charAt(end - 1) === " " || text.charAt(end - 1) === "\t")) end--;
+  var hashes = end;
+  while (hashes > 0 && text.charAt(hashes - 1) === "#") hashes--;
+  if (hashes < end && (hashes === 0 || text.charAt(hashes - 1) === " " || text.charAt(hashes - 1) === "\t")) end = hashes;
+  while (end > 0 && (text.charAt(end - 1) === " " || text.charAt(end - 1) === "\t")) end--;
+  return text.slice(0, end);
+}
+
+function renderMarkdown(source, depth) {
+  depth = depth || 0;
+  var lines = normalizeText(source).split("\n");
   var html = [];
   var i = 0;
   function isBlank(line) {
@@ -120,20 +160,23 @@ function renderMarkdown(source) {
       i++;
       continue;
     }
-    var fence = /^```\s*([A-Za-z0-9_+-]*)\s*$/.exec(line);
+    var fence = FENCE.exec(line);
     if (fence) {
+      var marker = fence[1];
+      var close = new RegExp("^ {0,3}" + (marker.charAt(0) === "`" ? "`" : "~") + "{" + marker.length + ",}[ \\t]*$");
+      var info = /^[A-Za-z0-9_+#.-]{1,40}/.exec(fence[2].trim());
       var code = [];
       i++;
-      while (i < lines.length && !/^```\s*$/.test(lines[i])) code.push(lines[i++]);
+      while (i < lines.length && !close.test(lines[i])) code.push(lines[i++]);
       i++;
-      var cls = fence[1] ? ' class="language-' + escapeHtml(fence[1]) + '"' : "";
+      var cls = info ? ' class="language-' + escapeHtml(info[0]) + '"' : "";
       html.push("<pre><code" + cls + ">" + escapeHtml(code.join("\n")) + "</code></pre>");
       continue;
     }
-    var heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    var heading = /^(#{1,6})[ \t]+(.*)$/.exec(line);
     if (heading) {
       var level = Math.min(6, heading[1].length + 1);
-      html.push("<h" + level + ">" + renderInline(heading[2]) + "</h" + level + ">");
+      html.push("<h" + level + ">" + renderInline(headingText(heading[2])) + "</h" + level + ">");
       i++;
       continue;
     }
@@ -142,10 +185,10 @@ function renderMarkdown(source) {
       i++;
       continue;
     }
-    if (/^\s*>/.test(line)) {
+    if (/^\s*>/.test(line) && depth < MAX_QUOTE_DEPTH) {
       var quote = [];
       while (i < lines.length && /^\s*>/.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/, ""));
-      html.push("<blockquote>" + renderMarkdown(quote.join("\n")) + "</blockquote>");
+      html.push("<blockquote>" + renderMarkdown(quote.join("\n"), depth + 1) + "</blockquote>");
       continue;
     }
     var unordered = /^\s*[-*+]\s+/;
@@ -167,7 +210,7 @@ function renderMarkdown(source) {
     while (
       i < lines.length &&
       !isBlank(lines[i]) &&
-      !/^```/.test(lines[i]) &&
+      !FENCE.test(lines[i]) &&
       !/^#{1,6}\s/.test(lines[i]) &&
       !/^\s*>/.test(lines[i]) &&
       !unordered.test(lines[i]) &&
@@ -194,8 +237,41 @@ function slugify(text) {
 function parseDate(value) {
   var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || "").trim());
   if (!match) return null;
-  var date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  return isNaN(date.getTime()) ? null : date;
+  var year = Number(match[1]);
+  var month = Number(match[2]);
+  var day = Number(match[3]);
+  var date = new Date(Date.UTC(year, month - 1, day));
+  // Impossible dates (2026-02-31) are refused instead of rolled over.
+  if (isNaN(date.getTime()) || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return null;
+  }
+  return date;
+}
+
+function parseBoolean(value, what) {
+  if (value === undefined) return false;
+  var text = String(value).trim().toLowerCase();
+  if (text === "true" || text === "yes") return true;
+  if (text === "false" || text === "no" || text === "") return false;
+  throw new Error(what + " must be true or false, not " + JSON.stringify(String(value).slice(0, 40)));
+}
+
+// What the script hands to `ravi pages ship`. Ravi passes these as separate
+// arguments without a shell and refuses a value that starts with "-"; the
+// patterns here keep them to what a blog route, title and project look like.
+var ROUTE = /^\/[a-z0-9][a-z0-9-]{0,62}(?:\/[a-z0-9][a-z0-9-]{0,62}){0,3}$/;
+var PROJECT = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+
+function checkShipValues(route, title, project) {
+  if (!ROUTE.test(route)) {
+    throw new Error("--route must be a path such as /blog (lowercase letters, digits and -, not the project home /)");
+  }
+  if (!title || title.length > 120 || /^-/.test(title) || /[\u0000-\u001F\u007F-\u009F]/.test(title)) {
+    throw new Error("the site title must be 1 to 120 characters, without control characters, and not start with -");
+  }
+  if (project !== undefined && !PROJECT.test(project)) {
+    throw new Error("--project must be a project id or slug (letters, digits, _ . -)");
+  }
 }
 
 function formatDate(date, lang) {
@@ -242,11 +318,15 @@ var STYLE = [
   "@media (max-width:480px){body{font-size:17px}h1{font-size:1.7rem}.wrap{padding-top:1.5rem}}",
 ].join("\n");
 
+// No script runs on these pages, whatever a post contains.
+var CSP = "default-src 'none'; style-src 'self'; img-src 'self' https: data:; base-uri 'none'; form-action 'none'";
+
 function layout(site, title, body, description) {
   return (
     "<!doctype html>\n" +
     '<html lang="' + escapeHtml(site.lang) + '">\n<head>\n<meta charset="utf-8">\n' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">\n' +
+    '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">\n' +
     "<title>" + escapeHtml(title) + "</title>\n" +
     (description ? '<meta name="description" content="' + escapeHtml(description) + '">\n' : "") +
     '<link rel="stylesheet" href="style.css">\n' +
@@ -264,7 +344,7 @@ function readSite(files, options) {
   if (typeof files["site.json"] === "string") {
     try {
       var parsed = JSON.parse(files["site.json"]);
-      if (parsed && typeof parsed === "object") site = parsed;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) site = parsed;
     } catch (error) {
       throw new Error("site.json is not valid JSON");
     }
@@ -274,13 +354,16 @@ function readSite(files, options) {
     return typeof value === "string" && value.trim() ? value.trim() : fallback;
   }
   var lang = pick("lang", "pt-BR");
+  if (!/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,2}$/.test(lang)) throw new Error("lang must be a language tag such as pt-BR");
   var pt = lang.toLowerCase().indexOf("pt") === 0;
+  var url = pick("url", "");
+  if (url && (!/^https?:\/\//i.test(url) || safeUrl(url) === null)) throw new Error("url must be an http(s) address");
   return {
     title: pick("title", "Blog"),
     description: pick("description", ""),
     author: pick("author", ""),
     lang: lang,
-    url: pick("url", ""),
+    url: url,
     footer: pick("footer", pt ? "Publicado com Ravi." : "Published with Ravi."),
     empty: pt ? "Nenhum post publicado ainda." : "No posts yet.",
   };
@@ -290,26 +373,31 @@ function build(input) {
   var options = parseArgs(input.args || []);
   var files = input.files || {};
   var site = readSite(files, options);
-  var includeDrafts = options.drafts === "true";
+  var includeDrafts = parseBoolean(options.drafts, "--drafts");
+  var route = options.route || "/blog";
+  checkShipValues(route, site.title, options.project);
   var posts = [];
-  var slugs = {};
+  var slugs = Object.create(null);
   var paths = Object.keys(files).sort();
+  var sources = 0;
   for (var p = 0; p < paths.length; p++) {
     var path = paths[p];
-    if (!/\.(md|markdown)$/i.test(path)) continue;
+    // Posts are the Markdown files at the top of the folder; README and _notes are not posts.
+    if (path.indexOf("/") >= 0 || !/\.(md|markdown)$/i.test(path) || /^(readme|_)/i.test(path)) continue;
+    sources++;
     var parsed = parseFrontMatter(files[path]);
     var meta = parsed.meta;
-    if (meta.draft === "true" && !includeDrafts) continue;
+    if (parseBoolean(meta.draft, path + ": draft") && !includeDrafts) continue;
     var base = path.replace(/^.*\//, "").replace(/\.(md|markdown)$/i, "");
     var slug = slugify(meta.slug || base);
     if (slug === "index" || slug === "feed" || slug === "style") slug = slug + "-post";
     if (slugs[slug]) throw new Error("two posts use the slug " + slug + ": " + slugs[slug] + " and " + path);
     slugs[slug] = path;
     var body = parsed.body;
-    var title = meta.title;
+    var title = meta.title ? clean(meta.title) : "";
     if (!title) {
       var firstHeading = /^#\s+(.+)$/m.exec(body);
-      title = firstHeading ? firstHeading[1].trim() : base;
+      title = firstHeading ? headingText(firstHeading[1].trim()) : base;
       if (firstHeading) body = body.replace(firstHeading[0], "");
     }
     var date = parseDate(meta.date);
@@ -328,6 +416,9 @@ function build(input) {
         .filter(Boolean),
       content: content,
     });
+  }
+  if (sources === 0) {
+    throw new Error("no posts: the folder has no .md files at its top level, so nothing would replace the current blog");
   }
   posts.sort(function (a, b) {
     var at = a.date ? a.date.getTime() : 0;
@@ -392,7 +483,7 @@ function build(input) {
     items +
     "\n</channel></rss>\n";
 
-  var shipArgs = ["--route", options.route || "/blog", "--title", site.title];
+  var shipArgs = ["--route", route, "--title", site.title];
   if (options.project) shipArgs.push("--project", options.project);
   return {
     files: out,

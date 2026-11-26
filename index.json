@@ -2,8 +2,8 @@
   "schema": "ravi.app-index/v1",
   "source": "official",
   "serial": 2,
-  "issuedAt": "2026-11-25T23:44:50.004Z",
-  "expires": "2026-12-25T23:44:50.004Z",
+  "issuedAt": "2026-11-26T00:04:30.188Z",
+  "expires": "2026-12-26T00:04:30.188Z",
   "apps": {
     "blog": {
       "name": "Blog",
@@ -48,15 +48,15 @@
         {
           "version": "0.2.0",
           "class": "compose",
-          "treeHash": "54352aef14112f62e69c55d3c9561a1174e9a2ef77ec7af997aed2491d6c6d50",
+          "treeHash": "ecd6e0302050d0f8d2e34151a4f86c5a4015a6cbd3be71328dc3530c6b9dc73d",
           "bundle": {
             "path": "bundles/blog-0.2.0.json",
-            "sha256": "10e2e0f1e09433b01fe42d599e6606cc9fa7fb13cfe41fb051035163cabdb27e",
-            "size": 24087
+            "sha256": "d069e16c106ec06ed37648cd5fea2ce43e2bc2dab16c9ee81997f87de7d8c5fe",
+            "size": 29104
           },
           "grants": {
             "contextAllow": [
-              "execute:group:pages",
+              "mutate:pages:ship",
               "use:tool:Read"
             ],
             "operations": {
@@ -67,21 +67,13 @@
               "blog.publish": {
                 "runs": "sandbox:lib/blog.js then ravi pages ship --json {args} --dir <files> [script may set --route --title --project] (reads --posts <folder in the working directory>)",
                 "mutating": true
-              },
-              "blog.posts": {
-                "runs": "ravi pages published --json {args}",
-                "mutating": false
-              },
-              "blog.read": {
-                "runs": "ravi pages read {args}",
-                "mutating": false
               }
             },
             "hosts": [],
             "connections": []
           },
           "engines": {},
-          "publishedAt": "2026-11-25T23:44:50.004Z",
+          "publishedAt": "2026-11-26T00:04:30.188Z",
           "status": "active",
           "security": false
         }

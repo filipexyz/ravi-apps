@@ -12,7 +12,7 @@
   },
   "context": {
     "allow": [
-      "execute:group:pages",
+      "mutate:pages:ship",
       "use:tool:Read"
     ]
   },
@@ -26,15 +26,15 @@
       "mutating": false,
       "permission": "blog:read",
       "help": {
-        "usage": "ravi blog build --posts <folder> [--title <t>] [--description <d>] [--author <a>] [--lang pt-BR] [--url <site url>] [--drafts true]",
+        "usage": "ravi blog build --posts <folder> [--title <t>] [--description <d>] [--author <a>] [--lang pt-BR] [--url <https url>] [--footer <f>] [--drafts true]",
         "summary": "Render the site from the Markdown posts in <folder> and return the files, without publishing.",
         "sections": [
           {
             "title": "Posts",
             "lines": [
-              "One .md file per post. Optional front matter between --- lines: title, date (YYYY-MM-DD), description, tags (comma-separated), slug, draft (true).",
-              "An optional site.json in the folder sets title, description, author, lang, url and footer; flags win over it.",
-              "The folder must be inside the working directory. Raw HTML in posts is shown as text, and links may only be http(s), mailto or relative."
+              "One .md file per post, at the top of the folder (README.md, files starting with _ and subfolders are not posts). Optional front matter between --- lines: title, date (YYYY-MM-DD), description, tags (comma-separated), slug, draft (true or false).",
+              "An optional site.json in the folder sets title, description, author, lang, url and footer; flags win over it. Unknown flags are an error.",
+              "The folder must be inside the working directory. Raw HTML in posts is shown as text, links may only be http(s), mailto or relative paths, and every page carries a policy that blocks scripts."
             ]
           }
         ]
@@ -68,31 +68,12 @@
             "title": "Rules",
             "lines": [
               "Publishing is a write: the router asks for --execute.",
-              "Every publish renders every post again, so the index and the feed always match the folder.",
-              "The route keeps the project's visibility (private by default); only the operator makes it public, with ravi pages visibility."
+              "Every publish renders every post again, so the index and the feed always match the folder. A folder with no posts is refused instead of emptying the blog.",
+              "--route is a path below the project home (default /blog); the home / is refused. Posts land at <route>/<slug>.html.",
+              "The script can only pass --route, --title and --project to ravi pages ship; the route keeps the project's visibility, which only the operator changes with ravi pages visibility."
             ]
           }
         ]
-      }
-    },
-    "blog.posts": {
-      "interface": "cli",
-      "command": "ravi pages published --json {args}",
-      "mutating": false,
-      "permission": "blog:read",
-      "help": {
-        "usage": "ravi blog posts [--project <project>]",
-        "summary": "List the published routes; posts are the ones under /blog/."
-      }
-    },
-    "blog.read": {
-      "interface": "cli",
-      "command": "ravi pages read {args}",
-      "mutating": false,
-      "permission": "blog:read",
-      "help": {
-        "usage": "ravi blog read <url> [--format html]",
-        "summary": "Read a published post or the index back, to edit it or match its style."
       }
     }
   },
