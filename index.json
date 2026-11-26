@@ -2,8 +2,8 @@
   "schema": "ravi.app-index/v1",
   "source": "official",
   "serial": 2,
-  "issuedAt": "2026-11-26T00:04:30.188Z",
-  "expires": "2026-12-26T00:04:30.188Z",
+  "issuedAt": "2026-11-26T00:05:00.240Z",
+  "expires": "2026-12-26T00:05:00.240Z",
   "apps": {
     "blog": {
       "name": "Blog",
@@ -48,11 +48,11 @@
         {
           "version": "0.2.0",
           "class": "compose",
-          "treeHash": "ecd6e0302050d0f8d2e34151a4f86c5a4015a6cbd3be71328dc3530c6b9dc73d",
+          "treeHash": "22e1b99ac4be5a4d73c8cb9d2452080b5b0a660558a7d489f045c6d5cfcbf24b",
           "bundle": {
             "path": "bundles/blog-0.2.0.json",
-            "sha256": "d069e16c106ec06ed37648cd5fea2ce43e2bc2dab16c9ee81997f87de7d8c5fe",
-            "size": 29104
+            "sha256": "e5ad11260bfc6fa5a1260d0f0b4c85a8766738a0f1081e426709986402339724",
+            "size": 29744
           },
           "grants": {
             "contextAllow": [
@@ -73,7 +73,7 @@
             "connections": []
           },
           "engines": {},
-          "publishedAt": "2026-11-26T00:04:30.188Z",
+          "publishedAt": "2026-11-26T00:05:00.240Z",
           "status": "active",
           "security": false
         }
